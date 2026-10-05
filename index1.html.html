@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Catálogo Online</title>
+<style>
+  :root {
+    --pw: 400px;            /* largura de cada página (definida via JS) */
+    --ph: 533px;            /* altura de cada página (definida via JS) */
+    --paper: #fbfaf5;
+    --ink: #2b2620;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    font-family: Georgia, "Times New Roman", serif;
+    color: var(--ink);
+    user-select: none;
+    -webkit-user-select: none;
+    /* mesa escura com luz vinda do alto à esquerda */
+    background:
+      radial-gradient(ellipse 70% 60% at 30% 0%, rgba(255, 236, 200, .22), transparent 70%),
+      radial-gradient(ellipse 120% 90% at 50% 40%, #3a342d 0%, #221e19 55%, #100e0c 100%);
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(92deg, rgba(255,255,255,.012) 0 2px, rgba(0,0,0,.02) 2px 5px);
+  }
+
+  /* ---------- Palco ---------- */
+  .stage {
+    position: fixed; inset: 0 0 76px 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .book {
+    position: relative;
+    width: calc(var(--pw) * 2);
+    height: var(--ph);
+    transition: transform .9s cubic-bezier(.65, 0, .25, 1);
+  }
+  .ground-shadow {
+    position: absolute; top: 4%; height: 96%;
+    left: 0; width: 100%;
+    background: rgba(0,0,0,.55);
+    filter: blur(28px);
+    transform: translate(14px, 30px) scale(.96);
+    border-radius: 8px;
+    transition: left .9s cubic-bezier(.65,0,.25,1), width .9s cubic-bezier(.65,0,.25,1);
+    pointer-events: none;
+  }
+
+  /* ---------- Folhas ---------- */
+  .sheet {
+    position: absolute; top: 0; left: 50%;
+    width: var(--pw); height: var(--ph);
+    transform-origin: left center;
+    transform-style: preserve-3d;
+    cursor: pointer;
+  }
+  .face {
+    position: absolute; inset: 0;
+    backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse at 20% 10%, rgba(255,255,255,.7), transparent 60%),
+      var(--paper);
+  }
+  .face.front { border-radius: 2px 7px 7px 2px; box-shadow: 1px 0 0 #e4e0d4, 2px 0 0 #d6d1c3, 3px 0 0 #e4e0d4, 4px 1px 0 #cfc9ba; }
+  .face.back  { transform: rotateY(180deg); border-radius: 7px 2px 2px 7px; box-shadow: -1px 0 0 #e4e0d4, -2px 0 0 #d6d1c3, -3px 0 0 #e4e0d4, -4px 1px 0 #cfc9ba; }
+
+  /* sombra fixa da dobra central (lombada) */
+  .face::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+  .face.front::after {
+    background:
+      linear-gradient(to right, rgba(0,0,0,.34) 0%, rgba(0,0,0,.12) 3%, rgba(0,0,0,0) 10%),
+      linear-gradient(to left, rgba(0,0,0,.07), rgba(0,0,0,0) 6%);
+  }
+  .face.back::after {
+    background:
+      linear-gradient(to left, rgba(0,0,0,.34) 0%, rgba(0,0,0,.12) 3%, rgba(0,0,0,0) 10%),
+      linear-gradient(to right, rgba(0,0,0,.07), rgba(0,0,0,0) 6%);
+  }
+  /* sombra dinâmica + brilho durante o giro */
+  .shade, .gloss { position: absolute; inset: 0; pointer-events: none; z-index: 6; opacity: 0; }
+  .shade { background: #0a0806; }
+  .gloss.f { background: linear-gradient(100deg, rgba(255,255,255,0) 10%, rgba(255,250,235,.85) 45%, rgba(255,255,255,0) 80%); }
+  .gloss.b { background: linear-gradient(260deg, rgba(255,255,255,0) 10%, rgba(255,250,235,.85) 45%, rgba(255,255,255,0) 80%); }
+
+  /* sombra projetada da folha que gira sobre as páginas abaixo */
+  .cast {
+    position: absolute; top: 0; width: var(--pw); height: var(--ph);
+    pointer-events: none; opacity: 0; z-index: 500;
+  }
+  .cast.r { left: 50%; border-radius: 2px 7px 7px 2px; background: linear-gradient(to right, rgba(0,0,0,.65), rgba(0,0,0,.25) 45%, rgba(0,0,0,0) 90%); }
+  .cast.l { left: 0;   border-radius: 7px 2px 2px 7px; background: linear-gradient(to left,  rgba(0,0,0,.65), rgba(0,0,0,.25) 45%, rgba(0,0,0,0) 90%); }
+
+  /* ---------- Conteúdo da página ---------- */
+  .page-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; -webkit-user-drag: none; }
+  .ph {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; padding: 12% 12% 12% 14%;
+    text-align: center;
+    background: repeating-linear-gradient(0deg, transparent 0 31px, rgba(60,50,40,.05) 31px 32px);
+  }
+  .back .ph { padding: 12% 14% 12% 12%; }
+  .ph .box {
+    width: 100%; padding: 22px 10px;
+    border: 2px dashed #b7ad9b; border-radius: 8px; background: rgba(255,255,255,.6);
+    font: 700 clamp(13px, calc(var(--pw) * .048), 22px) system-ui, sans-serif;
+    letter-spacing: .04em; color: #6b6455;
+  }
+  .ph .pn { font: 14px system-ui, sans-serif; color: #8a8072; font-size: clamp(11px, calc(var(--pw) * .034), 15px); }
+  .blank { position: absolute; inset: 0; }
+
+  /* ---------- Barra inferior ---------- */
+  .bar {
+    position: fixed; left: 0; right: 0; bottom: 0; height: 76px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+    color: #e9e2d3; font: 600 14px system-ui, sans-serif; z-index: 2000;
+  }
+  .bar button, .fs {
+    width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18);
+    background: rgba(255,255,255,.08); color: #fff; cursor: pointer;
+    display: grid; place-items: center; backdrop-filter: blur(6px);
+    transition: background .2s, transform .15s;
+  }
+  .bar button:hover, .fs:hover { background: rgba(255,255,255,.2); }
+  .bar button:active { transform: scale(.94); }
+  .bar button:disabled { opacity: .3; cursor: default; }
+  .bar button:focus-visible, .fs:focus-visible { outline: 2px solid #ffcf9e; outline-offset: 2px; }
+  .counter { min-width: 130px; text-align: center; letter-spacing: .02em; }
+  .fs { position: fixed; top: 14px; right: 14px; z-index: 2000; }
+  .fs svg, .bar svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  @media (prefers-reduced-motion: reduce) { .book, .ground-shadow { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="stage" id="stage">
+  <div class="book" id="book">
+    <div class="ground-shadow" id="ground"></div>
+    <div class="cast l" id="castL"></div>
+    <div class="cast r" id="castR"></div>
+    <!-- as folhas são criadas via JavaScript -->
+  </div>
+</div>
+
+<button class="fs" id="fsBtn" aria-label="Tela cheia" title="Tela cheia">
+  <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+</button>
+
+<div class="bar">
+  <button id="prev" aria-label="Página anterior"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <div class="counter" id="counter">Capa</div>
+  <button id="next" aria-label="Próxima página"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+</div>
+
+<script>
+/* ==== COLOQUE AQUI O LINK DA IMAGEM DE CADA PÁGINA (troque o texto entre aspas) ==== */
+const PAGINAS = [
+  "https://i.postimg.cc/JnSZtTZp/CAPA.png",                          // Página 1 (capa)
+  "https://i.postimg.cc/sDvqk1Dt/CONTRA-CAPA.png",                          // Página 2 (contra capa)
+  "https://i.postimg.cc/s2pcFCWV/SUPERMERCADO.png",                  // Página 3
+  "https://i.postimg.cc/BvWgwnj3/CLINICA.png",                  // Página 4
+  "https://i.postimg.cc/LszTdF1w/EDUCACAO.png",         // Página 5
+  "https://i.postimg.cc/g0vD9bhG/HOTEL.png",          // Página 6
+  "https://i.postimg.cc/g09DB2xY/ESCRITORIO.png",                     // Página 7
+  "https://i.postimg.cc/k5xcrPSm/FINAL.png",  // Página 8
+];
+/* ==================================================================================== */
+
+const TOTAL = PAGINAS.length;             // 9 páginas
+const N = Math.ceil(TOTAL / 2);           // 5 folhas (frente + verso)
+const DURATION = 1100;                    // ms de cada virada
+const book = document.getElementById("book");
+const castL = document.getElementById("castL");
+const castR = document.getElementById("castR");
+const ground = document.getElementById("ground");
+const counter = document.getElementById("counter");
+const prevBtn = document.getElementById("prev");
+const nextBtn = document.getElementById("next");
+
+let current = 0;   // quantas folhas já foram viradas
+const sheets = [];
+
+const temLink = v => { const s = (v || "").trim(); return s !== "" && !s.toUpperCase().includes("COLE O LINK AQUI"); };
+
+/* ---------- monta o conteúdo de uma face ---------- */
+function buildFace(pageIndex, side) {
+  const face = document.createElement("div");
+  face.className = "face " + side;
+  if (pageIndex >= TOTAL) {                 // verso em branco (após a página 9)
+    face.innerHTML = '<div class="blank"></div>';
+  } else if (temLink(PAGINAS[pageIndex])) {
+    const img = document.createElement("img");
+    img.className = "page-img"; img.alt = "Página " + (pageIndex + 1); img.draggable = false;
+    img.onerror = () => { img.remove(); face.prepend(placeholder(pageIndex, 'Imagem não encontrada: ' + PAGINAS[pageIndex])); };
+    img.src = PAGINAS[pageIndex].trim();
+    face.append(img);
+  } else {
+    face.append(placeholder(pageIndex));
+  }
+  const shade = document.createElement("div"); shade.className = "shade";
+  const gloss = document.createElement("div"); gloss.className = "gloss " + (side === "front" ? "f" : "b");
+  face.append(shade, gloss);
+  face._shade = shade; face._gloss = gloss;
+  return face;
+}
+
+function placeholder(i, msg) {
+  const ph = document.createElement("div");
+  ph.className = "ph";
+  ph.innerHTML = '<div class="pn">Página ' + (i + 1) + ' de ' + TOTAL + '</div><div class="box">' + (msg || 'COLE O LINK AQUI') + '</div>';
+  return ph;
+}
+
+/* ---------- cria as folhas ---------- */
+for (let i = 0; i < N; i++) {
+  const el = document.createElement("div");
+  el.className = "sheet";
+  const front = buildFace(i * 2, "front");
+  const back  = buildFace(i * 2 + 1, "back");
+  el.append(front, back);
+  book.append(el);
+  const s = { i, el, front, back, angle: 0, from: 0, to: 0, t0: 0, dur: DURATION, anim: false };
+  front.addEventListener("click", () => next());
+  back.addEventListener("click", () => prev());
+  sheets.push(s);
+  applySheet(s); setZ(s);
+}
+
+/* ---------- animação ---------- */
+const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function setZ(s) {
+  s.el.style.zIndex = s.anim ? 1000 : (s.to === 180 ? s.i + 1 : N - s.i + 1);
+}
+
+function applySheet(s) {
+  const a = s.angle;
+  s.el.style.transform = "perspective(2600px) rotateY(" + (-a) + "deg)";
+  // frente (visível 0–90°): escurece perto da vertical; brilho no meio do giro
+  const fa = Math.min(a, 90) / 90;
+  s.front._shade.style.opacity = a < 90 ? (0.55 * fa * fa).toFixed(3) : 0;
+  s.front._gloss.style.opacity = a < 90 ? (0.30 * Math.sin(fa * Math.PI * .9)).toFixed(3) : 0;
+  // verso (visível 90–180°)
+  const ba = Math.min(180 - a, 90) / 90;
+  s.back._shade.style.opacity = a > 90 ? (0.55 * ba * ba).toFixed(3) : 0;
+  s.back._gloss.style.opacity = a > 90 ? (0.30 * Math.sin(ba * Math.PI * .9)).toFixed(3) : 0;
+}
+
+let raf = null;
+function tick(now) {
+  let any = false, cR = 0, cL = 0;
+  for (const s of sheets) {
+    if (!s.anim) continue;
+    const t = Math.min(1, (now - s.t0) / s.dur);
+    s.angle = s.from + (s.to - s.from) * ease(t);
+    if (t >= 1) { s.angle = s.to; s.anim = false; setZ(s); } else any = true;
+    applySheet(s);
+    // sombra projetada nas páginas de baixo
+    const a = s.angle, sn = Math.sin(a * Math.PI / 180);
+    if (s.i < N - 1) cR = Math.max(cR, sn * (a < 100 ? 1 : Math.max(0, (180 - a) / 80)));
+    if (s.i > 0)     cL = Math.max(cL, sn * (a > 80 ? 1 : a / 80));
+  }
+  castR.style.opacity = cR * .75;
+  castL.style.opacity = cL * .75;
+  raf = any ? requestAnimationFrame(tick) : null;
+}
+
+function flip(s, to) {
+  s.from = s.angle; s.to = to; s.t0 = performance.now();
+  s.dur = reduce ? 1 : Math.max(350, DURATION * Math.abs(to - s.from) / 180);
+  s.anim = true; setZ(s);
+  if (!raf) raf = requestAnimationFrame(tick);
+}
+
+function next() { if (current < N) { flip(sheets[current], 180); current++; update(); } }
+function prev() { if (current > 0) { current--; flip(sheets[current], 0); update(); } }
+
+/* ---------- estado do livro ---------- */
+function update() {
+  // centraliza a capa fechada / contracapa fechada
+  const shift = current === 0 ? -25 : current === N ? 25 : 0;
+  book.style.transform = "translateX(" + shift + "%)";
+  ground.style.left  = current === 0 ? "50%" : "0";
+  ground.style.width = (current === 0 || current === N) ? "50%" : "100%";
+  prevBtn.disabled = current === 0;
+  nextBtn.disabled = current === N;
+  const left = current * 2, right = current * 2 + 1;
+  let txt;
+  if (current === 0) txt = "Capa · 1 de " + TOTAL;
+  else if (current === N) txt = "Fim · " + TOTAL + " de " + TOTAL;
+  else txt = "Páginas " + left + "–" + right + " de " + TOTAL;
+  counter.textContent = txt;
+}
+
+/* ---------- tamanho responsivo (preenche a tela) ---------- */
+/* Proporção da página: 3 x 4. Se suas imagens tiverem outra proporção, troque o "4 / 3" abaixo (altura / largura). */
+const PROPORCAO = 4 / 3;
+function resize() {
+  const vw = innerWidth, vh = innerHeight - 76;
+  let pw = Math.min(vw * 0.47, (vh * 0.94) / PROPORCAO);
+  if (vw < 700) pw = Math.min(vw * 0.62, (vh * 0.94) / PROPORCAO);   // celular: capa fechada maior
+  document.documentElement.style.setProperty("--pw", pw + "px");
+  document.documentElement.style.setProperty("--ph", (pw * PROPORCAO) + "px");
+}
+addEventListener("resize", resize); resize(); update();
+
+/* ---------- teclado, toque e tela cheia ---------- */
+addEventListener("keydown", e => {
+  if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); next(); }
+  if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); prev(); }
+  if (e.key === "f" || e.key === "F") toggleFS();
+});
+prevBtn.onclick = prev; nextBtn.onclick = next;
+
+let tx = null;
+addEventListener("touchstart", e => { tx = e.touches[0].clientX; }, { passive: true });
+addEventListener("touchend", e => {
+  if (tx === null) return;
+  const dx = e.changedTouches[0].clientX - tx;
+  if (Math.abs(dx) > 60) dx < 0 ? next() : prev();
+  tx = null;
+});
+
+function toggleFS() {
+  const d = document, el = d.documentElement;
+  if (!d.fullscreenElement && !d.webkitFullscreenElement) (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+  else (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+}
+document.getElementById("fsBtn").onclick = toggleFS;
+</script>
+</body>
+</html>
